@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ToDo App</title>
+  <link rel="stylesheet" href="styling.css">
+</head>
+
+<body>
+  <main class="card">
+    <h1>To-Do App</h1>
+
+    <div class="add-row">
+      <input id="todoInput" type="text" placeholder="What needs doing?" autocomplete="off">
+      <button id="addBtn" class="primary">Add</button>
+    </div>
+
+    <div class="toolbar">
+      <p class="tip">Tip: double-click a todo to edit. Press Enter to save.</p>
+      <div class="filters">
+        <button class="filter active" data-filter="all">All</button>
+        <button class="filter" data-filter="active">Active</button>
+        <button class="filter" data-filter="completed">Completed</button>
+      </div>
+    </div>
+
+    <ul id="todoList"></ul>
+    <p id="emptyMsg" class="empty" hidden>Nothing here yet. Add a todo above.</p>
+
+    <footer>
+      <span id="counter">0 items left</span>
+      <div>
+        <button id="clearCompleted" class="small">Clear completed</button>
+        <button id="clearAll" class="small">Clear all</button>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+
+var todos = []; // [{ id, text, completed }]
+var currentFilter = 'all'; 
+
+var input = document.getElementById('todoInput');
+var addBtn = document.getElementById('addBtn');
+var list = document.getElementById('todoList');
+var counter = document.getElementById('counter');
+var emptyMsg = document.getElementById('emptyMsg');
+var filterBtns = document.querySelectorAll('.filter');
+
+function addTodo(text) {
+  var clean = text.trim();
+  if (clean === "") {
+    return;
+  }
+  
+  var newTodo = {
+    id: Date.now(),
+    text: clean,
+    completed: false
+  };
+  
+  todos.push(newTodo);
+  render();
+}
+
+function toggleTodo(id) {
+  for (var i = 0; i < todos.length; i++) {
+    if (todos[i].id === id) {
+      todos[i].completed = !todos[i].completed;
+    }
+  }
+  render();
+}
+
+function editTodo(id, newText) {
+  var clean = newText.trim();
+  
+  if (clean === "") {
+    deleteTodo(id);
+  } else {
+    for (var i = 0; i < todos.length; i++) {
+      if (todos[i].id === id) {
+        todos[i].text = clean;
+      }
+    }
+  }
+  render();
+}
+
+function deleteTodo(id) {
+  var updatedTodos = [];
+  for (var i = 0; i < todos.length; i++) {
+    if (todos[i].id !== id) {
+      updatedTodos.push(todos[i]);
+    }
+  }
+  todos = updatedTodos;
+  render();
+}
+
+function clearCompleted() {
+  var activeTodos = [];
+  for (var i = 0; i < todos.length; i++) {
+    if (!todos[i].completed) {
+      activeTodos.push(todos[i]);
+    }
+  }
+  todos = activeTodos;
+  render();
+}
+
+function clearAll() {
+  todos = [];
+  render();
+}
+
+// Shows the current Todos for each filter
+function getVisibleTodos() { 
+  var visible = [];
+  for (var i = 0; i < todos.length; i++) {
+    if (currentFilter === 'active' && !todos[i].completed) {
+      visible.push(todos[i]);
+    } else if (currentFilter === 'completed' && todos[i].completed) {
+      visible.push(todos[i]);
+    } else if (currentFilter === 'all') {
+      visible.push(todos[i]);
+    }
+  }
+  return visible;
+}
+
+// Function for the Double-Click Edit
+function startEditing(li, todo) {
+  var textSpan = li.querySelector('.text');
+  var editBox = document.createElement('input');
+  editBox.type = 'text';
+  editBox.className = 'edit-input';
+  editBox.value = todo.text;
+  textSpan.replaceWith(editBox);
+  editBox.focus();
+
+  var finished = false;
+  var finish = function() {
+    if (finished) return;      
+    finished = true;
+    editTodo(todo.id, editBox.value);
+  };
+
+  editBox.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') finish();
+    if (e.key === 'Escape') { finished = true; render(); }
+  });
+  editBox.addEventListener('blur', finish);
+}
+
+function render() {
+  list.innerHTML = '';
+  var visible = getVisibleTodos();
+
+  for (var i = 0; i < visible.length; i++) {
+    var todo = visible[i];
+    var li = document.createElement('li');
+    if (todo.completed) {
+      li.classList.add('done');
+    }
+
+    var checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = todo.completed;
+    checkbox.addEventListener('change', (function(currentId) {
+      return function() {
+        toggleTodo(currentId);
+      };
+    })(todo.id));
+
+    var span = document.createElement('span');
+    span.className = 'text';
+    span.textContent = todo.text;   // textContent (not innerHTML) keeps user input safe
+    span.addEventListener('dblclick', (function(currentLi, currentTodo) {
+      return function() {
+        startEditing(currentLi, currentTodo);
+      };
+    })(li, todo));
+
+    var del = document.createElement('button');
+    del.className = 'delete';
+    del.setAttribute('aria-label', 'Delete ' + todo.text);
+    del.textContent = '🗑';
+    del.addEventListener('click', (function(currentId) {
+      return function() {
+        deleteTodo(currentId);
+      };
+    })(todo.id));
+
+    li.append(checkbox, span, del);
+    list.appendChild(li);
+  }
+
+  var leftCount = 0;
+  for (var j = 0; j < todos.length; j++) {
+    if (!todos[j].completed) {
+      leftCount++;
+    }
+  }
+  
+  var itemText = (leftCount === 1) ? 'item left' : 'items left';
+  counter.textContent = leftCount + ' ' + itemText;
+  emptyMsg.hidden = visible.length > 0;
+
+  for (var k = 0; k < filterBtns.length; k++) {
+    var btn = filterBtns[k];
+    if (btn.dataset.filter === currentFilter) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  }
+}
+
+
+function submitInput() {
+  addTodo(input.value);
+  input.value = '';
+  input.focus();
+}
+
+addBtn.addEventListener('click', submitInput);
+input.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    submitInput();
+  }
+});
+
+for (var i = 0; i < filterBtns.length; i++) {
+  filterBtns[i].addEventListener('click', function() {
+    currentFilter = this.dataset.filter;
+    render();
+  });
+}
+
+document.getElementById('clearCompleted').addEventListener('click', clearCompleted);
+document.getElementById('clearAll').addEventListener('click', clearAll);
+
+render();
+</script>
+</body>
+</html>
